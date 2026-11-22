@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Petit tableau de bord public utilisant l’API REST GitHub.">
+  <title>GitHub Repo Viewer</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; }
+    main { border: 1px solid #8886; border-radius: 14px; padding: 1.5rem; }
+    form { display: flex; flex-wrap: wrap; gap: .6rem; }
+    input, button { font: inherit; padding: .7rem; border-radius: 8px; }
+    input { flex: 1 1 240px; border: 1px solid #8888; }
+    button { cursor: pointer; border: 0; background: #2563eb; color: white; }
+    dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; }
+    dl div { padding: 1rem; border: 1px solid #8886; border-radius: 10px; }
+    dt { opacity: .75; font-size: .9rem; } dd { margin: .25rem 0 0; font-size: 1.4rem; font-weight: 650; }
+    #status { min-height: 1.5em; }
+    a { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>GitHub Repo Viewer</h1>
+    <p>Consulte les informations publiques d’un dépôt grâce à l’API REST GitHub, sans jeton ni connexion.</p>
+    <form id="repo-form">
+      <label for="repo">Dépôt (propriétaire/nom)</label>
+      <input id="repo" name="repo" value="saku168/Test-badge" pattern="[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+" required>
+      <button type="submit">Afficher</button>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <section id="result" hidden>
+      <h2 id="name"></h2>
+      <p id="description"></p>
+      <dl>
+        <div><dt>Étoiles</dt><dd id="stars">—</dd></div>
+        <div><dt>Forks</dt><dd id="forks">—</dd></div>
+        <div><dt>Issues ouvertes</dt><dd id="issues">—</dd></div>
+      </dl>
+      <p><a id="repo-link" href="#" target="_blank" rel="noopener noreferrer">Ouvrir sur GitHub</a></p>
+    </section>
+  </main>
+  <script>
+    const form = document.querySelector("#repo-form");
+    const status = document.querySelector("#status");
+    const result = document.querySelector("#result");
+    const number = value => new Intl.NumberFormat("fr-FR").format(value);
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const repo = document.querySelector("#repo").value.trim();
+      if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+        status.textContent = "Format attendu : propriétaire/nom.";
+        result.hidden = true;
+        return;
+      }
+      status.textContent = "Chargement…";
+      result.hidden = true;
+      try {
+        const response = await fetch("https://api.github.com/repos/" + repo, {
+          headers: { Accept: "application/vnd.github+json" }
+        });
+        if (!response.ok) {
+          if (response.status === 404) throw new Error("Dépôt introuvable ou non public.");
+          if (response.status === 403) throw new Error("Limite temporaire de l’API atteinte. Réessaie plus tard.");
+          throw new Error("GitHub a répondu avec le statut " + response.status + ".");
+        }
+        const data = await response.json();
+        document.querySelector("#name").textContent = data.full_name;
+        document.querySelector("#description").textContent = data.description || "Aucune description.";
+        document.querySelector("#stars").textContent = number(data.stargazers_count);
+        document.querySelector("#forks").textContent = number(data.forks_count);
+        document.querySelector("#issues").textContent = number(data.open_issues_count);
+        const link = document.querySelector("#repo-link");
+        link.href = data.html_url;
+        status.textContent = "";
+        result.hidden = false;
+      } catch (error) {
+        status.textContent = error.message || "Impossible de contacter l’API GitHub.";
+      }
+    });
+    form.requestSubmit();
+  </script>
+</body>
+</html>
